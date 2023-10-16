@@ -1,0 +1,45 @@
+select I.id as inspection_visit_id, I.Name as inspection_visit_name, I.CreatedDate as inspection_visit_booking_datetime,
+I.Inspection_Date_Time__c as inspection_visit_scheduled_start_datetime, I.Visit_End_Date_Time__c as inspection_visit_scheduled_end_datetime,
+Inspection_Report_Start_Time__c as inspection_visit_report_start_datetime, Inspection_Report_End_Time__c as inspection_visit_report_end_datetime, PersonLeadSource as lead_source, case PersonLeadSource  when 'Prince LLC' then '3rd parties'
+when 'Stewart-Kim' then '3rd parties' when 'Barr and Sons' then '3rd parties'
+when 'Ponce and Sons' then '3rd parties' when 'Simpson-Phillips' then '3rd parties'
+when 'Cook, Lopez and Golden' then '3rd parties'
+when 'Hernandez, Smith and Vaughan' then '3rd parties' else PersonLeadSource end as lead_source_group,
+I.Inspection_Date_Time__c - I.CreatedDate as time_from_booking_to_visit,
+extract(minute from (I.Inspection_Date_Time__c - I.CreatedDate))+extract(hour from (I.Inspection_Date_Time__c - I.CreatedDate))*60 as minutes_from_booking_to_scheduled_visit_time,
+extract(minute from (Inspection_Report_Start_Time__c - I.CreatedDate))+extract(hour from (Inspection_Report_Start_Time__c - I.CreatedDate))*60 as minutes_from_booking_to_inspection_report_time,
+extract(minute from (Inspection_Report_Start_Time__c -I.Inspection_Date_Time__c ))+extract(hour from (Inspection_Report_Start_Time__c -I.Inspection_Date_Time__c))*60 as minutes_from_visit_scheduled_start_to_inspection_report_start,
+extract(minute from (Inspection_Report_End_Time__c - Visit_End_Date_Time__c ))+extract(hour from(Inspection_Report_End_Time__c -Visit_End_Date_Time__c))*60 as minutes_from_visit_scheduled_end_to_inspection_report_end,
+case when extract(hour from (I.Inspection_Date_Time__c - I.CreatedDate)) <  24 then 'T' else 'F' end as visit_scheduled_within_24_hrs_from_booking,
+case when extract(hour from (I.Inspection_Date_Time__c - I.CreatedDate)) <  48 then 'T' else 'F' end as visit_scheduled_within_48_hrs_from_booking,
+case when extract(hour from (I.Inspection_Date_Time__c - I.CreatedDate)) <  72 then 'T' else 'F' end as visit_scheduled_within_72_hrs_from_booking,
+case when extract(hour from (I.Inspection_Date_Time__c - I.CreatedDate)) >  72 then 'T' else 'F' end as visit_scheduled_after_more_than_72_hrs_from_booking,
+case when extract(day from  (I.Inspection_Date_Time__c - I.CreatedDate)) = 0   then 'T' else 'F' end as visit_scheduled_same_day_from_booking,
+case when extract(day from  (I.Inspection_Date_Time__c - I.CreatedDate)) = 1   then 'T' else 'F' end as visit_scheduled_next_day_from_booking,
+case when extract(day from  (I.Inspection_Date_Time__c - I.CreatedDate)) = 2   then 'T' when extract(day from  (I.Inspection_Date_Time__c - I.CreatedDate)) > 2 then 'T'else 'F' end as visit_scheduled_2_days_or_more_from_booking,
+parse_time('%H:%M:%S', left(Inspection_Whole_Duration__c,7)) as inspection_visit_duration,
+cast(extract(minute from parse_time('%H:%M:%S', left(Inspection_Whole_Duration__c,7))) as float64) as inspection_visit_duration_in_minutes,
+extract(minute from (Inspection_Report_End_Time__c - Inspection_Report_Start_Time__c))+extract(hour from (Inspection_Report_End_Time__c - Inspection_Report_Start_Time__c))*60 as inspection_report_duration_in_minutes,
+case when OldValue = 'Scheduled' then 'T' when NewValue = 'Scheduled' then 'T'  else 'F' end as inspection_visit_had_scheduled_status,
+case when OldValue = 'Scheduled' then H.CreatedDate when NewValue = 'Scheduled' then H.CreatedDate else Null end as inspection_visit_scheduled_status_datetime,
+case when OldValue = 'Pending' then 'T' when NewValue = 'Pending' then 'T'  else 'F' end as inspection_visit_had_pending_status,
+case when OldValue = 'Pending' then H.CreatedDate when NewValue = 'Pending' then H.CreatedDate else Null end as inspection_visit_pending_status_datetime,
+case when Status__c = 'Closed Failure' then 'T' when OldValue = 'Closed Failure' then 'T' when NewValue = 'Closed Failure' then 'T' else 'F' end as inspection_visit_had_closed_failure_status, 
+case when OldValue = 'Closed Failure' then H.CreatedDate when NewValue = 'Closed Failure' then H.CreatedDate else Null end as inspection_visit_closed_failure_status_datetime,
+case when Status__c = 'Closed Success' then 'T' when OldValue = 'Closed Success' then 'T' when NewValue = 'Closed Success' then 'T' else 'F' end as inspection_visit_had_closed_success_status,
+case when OldValue = 'Closed Success' then H.CreatedDate when NewValue = 'Closed Success' then H.CreatedDate else Null end as inspection_visit_closed_success_status_datetime,
+Zone__c as zone, Inspection_Unit_Name__c as inspection_unit_name, Ins.Id as engineer_id, Ins.Name as engineer_name,
+Cancelation_Reason__c as cancelation_reason, Validation_of_Cancelation__c as validation_of_cancelation, Car_Name__c as car_id,
+case when extract(minute from (Inspection_Report_End_Time__c - Visit_End_Date_Time__c)) < 0 then 'T' else 'F' end as inspection_report_completed_within_scheduled_slot,
+Status__c as inspection_current_status, case when Status__c = 'Pending' then 'T' else 'F' end as is_pending,
+/*count I.Id having (Account__c = Basic_Car_Info__c) as number_of_reschedules,*/
+case when Validation_of_Cancelation__c = 'Customer asked for Rescheduling' then 'T' when Validation_of_Cancelation__c = 'Customer asked for Rescheduling' then 'T' else 'F' end as reschedule_requested,
+case when Status__c = 'Closed Success' then 'T' else 'F' end as is_success,
+case when Status__c = 'Closed Failure' then 'T' else 'F' end as is_failure
+from sylndr_task.Inspection_Visit__c I join sylndr_task.Account A
+on I.Account__c = A.Id
+join sylndr_task.Inspection_Visit__History H
+on I.ID = H.ParentId
+join sylndr_task.Inspector__c Ins
+on I.Inspector_User__c = Ins.Id
+
